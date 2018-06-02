@@ -4,16 +4,17 @@
 	<title>Hide and Seek!</title>
 	<meta charset="utf-8">
 	<style>
-		body {text-align: center; font-size: 15px; font-family: sans-serif; background-color: LightGreen;}
-		input {width: 150px; font-size: 15px; font-family: sans-serif;}
-		button {font-size: 15px; font-family: sans-serif;}
+		body {text-align: center; font-size: 35px; font-family: sans-serif; background-color: LightGreen;}
+		input {width: 300px; font-size: 35px; font-family: sans-serif;}
+		button {font-size: 35px; font-family: sans-serif;}
 		div {margin: 0 auto;}
-		table {table-layout: fixed; margin: 0 auto; font-size: 250%; border-collapse: collapse;}
-		td {width: 40px; height: 40px;}
+		table {table-layout: fixed; margin: 0 auto; font-size: 200%; border-collapse: collapse;}
+		td {width: 70px; height: 70px;}
 		.bold {font-weight: bold}
 		.light {font-style: italic; font-size: 85%;}
 		.occupiable {background-color: #ffccd4;}
 		.unvisited {text-decoration: underline;}
+		.title {font-size: 60px; font-style: italic;}
 	</style>
 </head>
 <body>
@@ -24,11 +25,14 @@
 <script>
 
 //BOT
-let botBeenBefore = [],
-    botBeenBeforeReset = [],
-    delay = 850,
-    amBot = false,
-    course = [];
+let bot = {
+	beenBefore: [],
+	beenBeforeReset: [],
+	seekerDelay: 850,
+	hiderDelay: 1000 + Math.floor(Math.random() * 2000),
+	on: false,
+	course: [],
+};
 
 // client variables
 let socket = new WebSocket("ws://localhost:8080/socket"),
@@ -72,41 +76,40 @@ socket.onmessage = function (e) {
 	msg = e.data.split("\n")
 	switch (msg[0]) {
 	case "found": // emoji // name // ROW // COL
-	// only non-waiting players receive this msg
-	{
-		let e = msg[1],
-		    n = msg[2],
-		    r = Number(msg[3]),
-		    c = Number(msg[4]);
-
-		if (e === emoji) { // you were found
-			found = true;
-			occs = Array.from(document.getElementsByClassName("occupiable"));
-			for (let o of occs) {
-				o.classList.remove("occupiable");
+		// only non-waiting players receive this msg
+		{
+			let e = msg[1],
+			    n = msg[2],
+			    r = Number(msg[3]),
+			    c = Number(msg[4]);
+	
+			if (e === emoji) { // you were found
+				found = true;
+				occs = Array.from(document.getElementsByClassName("occupiable"));
+				for (let o of occs) {
+					o.classList.remove("occupiable");
+				}
+				let cell = document.getElementById(`${r} ${c}`);
+				cell.innerHTML = forest[r][c];
+				printlns(forestArea, "You were found!", "Hang tight for the", "round to finish!");
+			} else { // someone else was found
+				someoneElseLeft_updateClasses(r, c);
+				printlns(forestArea, `${e} ${n} was found!`);
 			}
-			let cell = document.getElementById(`${r} ${c}`);
-			cell.innerHTML = forest[r][c];
-			printlns(forestArea, "You were found!", "Hang tight for the", "round to finish!");
-		} else { // someone else was found
-			someoneElseLeft_updateClasses(r, c);
-			printlns(forestArea, `${e} ${n} was found!`);
 		}
-	}
 		break;
 	case "game initialized": // code // emoji // name
-	// only someone starting a new game receives this msg
+		// only someone starting a new game receives this msg
 		code = msg[1];
 		emoji = msg[2];
 		name = msg[3];
-//BOT
-if (name.toLowerCase().slice(-3) === "bot") { amBot = true; }
+		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
 		seekerWaitingForPlayersScreen();
 		break;
 	case "game can't begin; seeker left":
-		go = false; //BOT
 		// situation where someone initializes a game and then leaves before starting it
 		// all players receive this msg (but none will ever be playing by definition)
+		go = false; //BOT
 		clearScreen();
 		printlns(topMsgArea,
 			{style: "font-size: 150%;"}, "Seeker left!",
@@ -118,18 +121,17 @@ if (name.toLowerCase().slice(-3) === "bot") { amBot = true; }
 		break;
 	case "go!":
 		go = true;
-//BOT
-if ( amBot ) { bot(); }
+		if ( bot.on ) { botGo(); } //BOT
 		break;
 	case "joined": // emoji // name
-	// all players receive this msg
+		// all players receive this msg
 		if (!playing) {
 			addToJoinedList(msg[1], msg[2]);
 		}
 		break;
 	case "left": // emoji // name // row // col
-	// all players receive this msg
-	// a player could leave before the first round
+		// all players receive this msg
+		// a player could leave before the first round
 		if (playing) {
 			let e = msg[1],
 			    n = msg[2];
@@ -144,76 +146,76 @@ if ( amBot ) { bot(); }
 		}
 		break;
 	case "moved": // EMOJI // from // ROW // COL // to // ROW // COL
-	// only non-waiting player receive this msg
-	{
-		let movingEmoji = msg[1],
-		    fromRow = msg[3],
-		    fromCol = msg[4],
-		    toRow = msg[6],
-		    toCol = msg[7];
-
-		let fromCell = document.getElementById(`${fromRow} ${fromCol}`),
-		    toCell = document.getElementById(`${toRow} ${toCol}`);
-
-		fromCell.innerHTML = forest[fromRow][fromCol];
-
-		// print correct emoji
-		if (amSeeker) {
-			if (movingEmoji == emoji) {
-				toCell.classList.remove("unvisited");
-				if (document.getElementsByClassName("unvisited")[0] === undefined) {
-					sendMsg("remove tree", toRow, toCol);
+		// only non-waiting player receive this msg
+		{
+			let movingEmoji = msg[1],
+			    fromRow = msg[3],
+			    fromCol = msg[4],
+			    toRow = msg[6],
+			    toCol = msg[7];
+	
+			let fromCell = document.getElementById(`${fromRow} ${fromCol}`),
+			    toCell = document.getElementById(`${toRow} ${toCol}`);
+	
+			fromCell.innerHTML = forest[fromRow][fromCol];
+	
+			// print correct emoji
+			if (amSeeker) {
+				if (movingEmoji == emoji) {
+					toCell.classList.remove("unvisited");
+					if (document.getElementsByClassName("unvisited")[0] === undefined) {
+						sendMsg("remove tree", toRow, toCol);
+					}
+					toCell.innerHTML = emoji;
 				}
-				toCell.innerHTML = emoji;
-			}
-		} else {
-			fromCell.classList.remove("occupied");
-			toCell.classList.add("occupied");
-			if (movingEmoji == seeker) {
-				toCell.innerHTML = seekerEmoji;
 			} else {
-				toCell.innerHTML = movingEmoji;
+				fromCell.classList.remove("occupied");
+				toCell.classList.add("occupied");
+				if (movingEmoji == seeker) {
+					toCell.innerHTML = seekerEmoji;
+				} else {
+					toCell.innerHTML = movingEmoji;
+				}
 			}
-		}
-// THIS NEEDS TO BE FIXED. SEEKER REMOVES TREES
+	
+			// update row, col, and occupiable
+			if (movingEmoji == emoji) {
+				row = toRow;
+				col = toCol;
+	
+				if (bot.on) { //BOT
+					bot.beenBefore[row][col] = true;
+				}
+			}
 
-		// update row, col, and occupiable
-		if (movingEmoji == emoji) {
-			row = toRow;
-			col = toCol;
-//BOT
-if (amBot) {
-	botBeenBefore[row][col] = true;
-}
+			for (let occ of Array.from(document.getElementsByClassName("occupiable"))) {
+				occ.classList.remove("occupiable");
+			}
+			makeNearbyTreesOccupiable(row, col);
 		}
-		for (let occ of Array.from(document.getElementsByClassName("occupiable"))) {
-			occ.classList.remove("occupiable");
-		}
-		makeNearbyTreesOccupiable(row, col);
-	}
 		break;
 	case "name is taken": // name
-	// only one player will receive this msg, and they won't have begun playing
+		// only one player will receive this msg, and they won't have begun playing
 		mainScreen();
 		reportProblemWithDesiredName({reason: msg[0], str: msg[1]});
 		break;
 	case "no such game": // code
-	// only one player will receive this msg, and they won't have begun playing
+		// only one player will receive this msg, and they won't have begun playing
 		bottomMsgArea.innerHTML = "";
 		printlns(bottomMsgArea, "Can't find that game. 😕", "", "Is that the right code?");
 		break;
 	case "remove tree": // row // col
-	{
-		let r = Number(msg[1]),
-		    c = Number(msg[2]);
-		let cell = document.getElementById(`${r} ${c}`);
-		cell.classList.remove("tree");
-		forest[r][c] = " ";
-	}
+		{
+			let r = Number(msg[1]),
+			    c = Number(msg[2]);
+			let cell = document.getElementById(`${r} ${c}`);
+			cell.classList.remove("tree");
+			forest[r][c] = " ";
+		}
 		break;
 	case "round over": // seeker left | 2 player game | too few hiders
-	go = false; //BOT
-	// all players receive this msg
+		// all players receive this msg
+		go = false; //BOT
 		clearScreen();
 		if (playing) {
 			switch (msg[1]) {
@@ -245,140 +247,134 @@ if (amBot) {
 		}
 		break;
 	case "setup": // seeker EMOJI // forest // TREES_PER_ROW // TREES // EMOJI // NAME // ROW // COL // SCORE // ... 
-	// all players receive this msg
-	{
-		// forest, seeker, amSeeker, go, playing, found, row, col
-		//  are set using this msg
-
-		clearScreen();
-
-		playing = true;
-		go = false;
-		found = false;
-
-		seeker = msg[1].split(" ")[1];
-
-		if (seeker === emoji) {
-			amSeeker = true;
-		} else {
-			amSeeker = false;
-		}
-
-		makeForest(Number(msg[3]), msg[4]);
-
-//BOT {
-{
-let rows = forest.length,
-    cols = forest[0].length;
-
-botBeenBefore = []; // read and modify this one
-botBeenBeforeReset = []; // this one holds the original for resetting 
-course = [];
-
-for (let r = 0; r < rows; r++) {
-	let b = [];
-	let re = [];
-	for (let c = 0; c < cols; c++) {
-		if (forest[r][c] === " ") {
-			b.push(true);
-			re.push(true);
-		} else {
-			b.push(false);
-			re.push(false);
-		}	
-	}
-	botBeenBefore.push(b);
-	botBeenBeforeReset.push(re);
-}
-}
-//BOT }
-
-		let topMsg = "";
-		if (amSeeker) {
-			topMsg = `Find 'em, ${name}!`;
-		} else {
-			topMsg = `Hide, ${name}!`;
-		}
-		printlns(topMsgArea, topMsg);
-		printlns(bottomMsgArea, `Game: ${code}`);
-
-
-		// grab players from msg
-		let players = new Map(),
-		    rankings = [],
-		    allScoresAreZero = true,
-		    len = msg.length;
-		for (let i = 5; i < len; i += 5) {
-			players.set( msg[i+1],
-				{ emoji: msg[i], row: Number(msg[i+2]), col: Number(msg[i+3]), score: Number(msg[i+4]) }
-			);
-			rankings.push(msg[i+1]);
-			if (Number(msg[i+4]) > 0) { allScoresAreZero = false; }
-		}
-		if (!allScoresAreZero) {
-			printlns(bottomMsgArea, "", "Scores:");
-		}
-
-
-		// sort rankings
-		rankings = myQuickSort(rankings, players);
-		
-
-		// put players on forest and show scores
-		row = -1;
-		col = -1;
-		for (let n of rankings) {
-			let e = players.get(n).emoji,
-			    r = players.get(n).row,
-			    c = players.get(n).col,
-			    s = players.get(n).score;
-
-			//if (s > 0) {
-			//	let div = document.createElement("div");
-			//	div.id = `score ${e}`;
-			//	div.appendChild(document.createTextNode(`${e} ${n} ${s}`))
-			//	bottomMsgArea.appendChild(div);
-			//}
-
+		// all players receive this msg
+		{
+			// forest, seeker, amSeeker, go, playing, found, row, col
+			//  are set using this msg
+	
+			clearScreen();
+	
+			playing = true;
+			go = false;
+			found = false;
+	
+			seeker = msg[1].split(" ")[1];
+	
+			if (seeker === emoji) {
+				amSeeker = true;
+			} else {
+				amSeeker = false;
+			}
+	
+			makeForest(Number(msg[3]), msg[4]);
+	
+			{ //BOT
+				let rows = forest.length,
+				    cols = forest[0].length;
+				
+				bot.beenBefore = []; // read and modify this one
+				bot.beenBeforeReset = []; // this one holds the original for resetting 
+				bot.course = [];
+				
+				for (let r = 0; r < rows; r++) {
+					let b = [];
+					let re = [];
+					for (let c = 0; c < cols; c++) {
+						if (forest[r][c] === " ") {
+							b.push(true);
+							re.push(true);
+						} else {
+							b.push(false);
+							re.push(false);
+						}	
+					}
+					bot.beenBefore.push(b);
+					bot.beenBeforeReset.push(re);
+				}
+			}
+	
+			let topMsg = "";
+			if (amSeeker) {
+				topMsg = `Find 'em, ${name}!`;
+			} else {
+				topMsg = `Hide, ${name}!`;
+			}
+			printlns(topMsgArea, topMsg);
+			printlns(bottomMsgArea, `Game: ${code}`);
+	
+	
+			// grab players from msg
+			let players = new Map(),
+			    rankings = [],
+			    allScoresAreZero = true,
+			    len = msg.length;
+			for (let i = 5; i < len; i += 5) {
+				players.set( msg[i+1],
+					{ emoji: msg[i], row: Number(msg[i+2]), col: Number(msg[i+3]), score: Number(msg[i+4]) }
+				);
+				rankings.push(msg[i+1]);
+				if (Number(msg[i+4]) > 0) { allScoresAreZero = false; }
+			}
 			if (!allScoresAreZero) {
-				printlns(bottomMsgArea, `${e} ${n} ${s}`);
+				printlns(bottomMsgArea, "", "Scores:");
 			}
-
-			if (e === emoji) {
-				row = r;
-				col = c;
-			}
-
-			let cell = document.getElementById(`${r} ${c}`);
-			if (amSeeker) { // seeker sees no one else
+	
+	
+			// sort rankings
+			rankings = myQuickSort(rankings, players);
+			
+	
+			// put players on forest and show scores
+			row = -1;
+			col = -1;
+			for (let n of rankings) {
+				let e = players.get(n).emoji,
+				    r = players.get(n).row,
+				    c = players.get(n).col,
+				    s = players.get(n).score;
+	
+				//if (s > 0) {
+				//	let div = document.createElement("div");
+				//	div.id = `score ${e}`;
+				//	div.appendChild(document.createTextNode(`${e} ${n} ${s}`))
+				//	bottomMsgArea.appendChild(div);
+				//}
+	
+				if (!allScoresAreZero) {
+					printlns(bottomMsgArea, `${e} ${n} ${s}`);
+				}
+	
 				if (e === emoji) {
-					cell.innerHTML = emoji;
-					cell.classList.remove("unvisited");
-					//makeNearbyTreesOccupiable(r, c);
+					row = r;
+					col = c;
 				}
-			} else { // hider sees everyone
-				cell.classList.add("occupied");
-				if (e == seeker) {
-					cell.innerHTML = seekerEmoji;
-				} else {
-					cell.innerHTML = e;
+	
+				let cell = document.getElementById(`${r} ${c}`);
+				if (amSeeker) { // seeker sees no one else
+					if (e === emoji) {
+						cell.innerHTML = emoji;
+						cell.classList.remove("unvisited");
+					}
+				} else { // hider sees everyone
+					cell.classList.add("occupied");
+					if (e == seeker) {
+						cell.innerHTML = seekerEmoji;
+					} else {
+						cell.innerHTML = e;
+					}
 				}
 			}
-		}
-
-		//if (!amSeeker) {
+	
 			makeNearbyTreesOccupiable(row, col);
-		//} // it's important that seekers make their nearby trees
-		  // occupiable in the above if statement. that way they
-
-		sendMsg("ready to go");
-	}
+	
+			sendMsg("ready to go");
+		}
 		break;
 	case "too few hiders":
-	go = false; //BOT
-	// always received by 1 player
-	// either a round ended and another can't begin (because too few)
-	// a game can't begin because too few (before round 0)
+		// always received by 1 player
+		// either a round ended and another can't begin (because too few)
+		// a game can't begin because too few (before round 0)
+		go = false; //BOT
 		if (playing) {
 			playing = false;
 			seekerWaitingForPlayersScreen();
@@ -387,35 +383,33 @@ for (let r = 0; r < rows; r++) {
 		printlns(bottomMsgArea, "Too few hiders! 😕", "", "Ask some people to join!");
 		break;
 	case "too many games in session":
-	// msg received by 1 player
+		// msg received by 1 player
 		bottomMsgArea.innerHTML = "";
 		printlns(bottomMsgArea, "Whoa!", "", "The server can't handle", "any more games!", "", "Try again later", "or join a game.");
 		break;
 	case "wait for next round": // code // yourEmoji // yourName // emoji // name // ...
-	go = false; //BOT
-	// msg received by 1 player
+		// msg received by 1 player
+		go = false; //BOT
 		code = msg[1];
 		emoji = msg[2];
 		name = msg[3];
-//BOT
-if (name.toLowerCase().slice(-3) === "bot") { amBot = true; }
+		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
 		waitForScreen("You'll join at", "the next round!", "");
 		addToJoinedList(...msg.slice(4,));
 		break;
 	case "wait for start": // code // yourEmoji // yourName // emoji // name // ...
-	go = false; //BOT
-	// msg received by 1 player
+		// msg received by 1 player
+		go = false; //BOT
 		code = msg[1];
 		emoji = msg[2];
 		name = msg[3];
-//BOT
-if (name.toLowerCase().slice(-3) === "bot") { amBot = true; }
+		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
 		waitForScreen("The seeker has not", "started the game yet.", "Hold Tight!");
 		addToJoinedList(...msg.slice(4,));
 		break;
 	case "winner": // emoji // name
-	go = false; //BOT
-	// msg received by all players
+		// msg received by all players
+		go = false; //BOT
 		if (playing) {
 			clearScreen();
 			let e = msg[1],
@@ -445,49 +439,48 @@ if (name.toLowerCase().slice(-3) === "bot") { amBot = true; }
 
 mainScreen();
 
-function bot() {
+//BOT
+function botGo() {
 	if (!go) { return }
 
-	if (!seeker) {
-		let occ = Array.from(document.getElementsByClassName("occupiable"));
-		let random = Math.floor(Math.random()*occ.length);
-		let coord = occ[random].id.split(" ");
-		sendMsg(`move to\n${coord[0]}\n${coord[1]}`);
-		setTimeout(bot, delay + Math.floor(Math.random()*1000)); // TRIGGER
+	if (!amSeeker) {
+		randomMove();
+		setTimeout(botGo, bot.hiderDelay); // TRIGGER
 		return; // EXIT
 	}
 
-	if (course.length > 0) {
-		let last = course.length - 1;
-		if (!(document.getElementById(`${course[last][0]} ${course[last][1]}`).classList.contains("occupiable"))) {
-			course = [];
+	if (bot.course.length > 0) {
+		let last = bot.course.length - 1;
+		if (!(document.getElementById(`${bot.course[last][0]} ${bot.course[last][1]}`).classList.contains("occupiable"))) {
+			bot.course = [];
+			randomMove();
 		} else {
-			sendMsg(`move to\n${course[last][0]}\n${course[last][1]}`);
-			course.length = last;
+			sendMsg(`move to\n${bot.course[last][0]}\n${bot.course[last][1]}`);
+			bot.course.length = last;
 		}
 	} else {
 		if (beenEverywhere()) {
 			resetBotBeenBefore();
 		}
 		let occ = Array.from(document.getElementsByClassName("occupiable"));
-		if (beenToAllOcc(occ)) { // plot course 
-			let rows = botBeenBefore.length,
-			    cols = botBeenBefore[0].length;
+		if (beenToAllOcc(occ)) { // plot Course 
+			let rows = bot.beenBefore.length,
+			    cols = bot.beenBefore[0].length;
 			let destination;
 			for (let r = 0; r < rows; r++) { // find a unvisited tree
 				for (let c = 0; c < cols; c++) {
-					if (!botBeenBefore[r][c]) {
-						course = plotCourse(r, c);
+					if (!bot.beenBefore[r][c]) {
+						bot.course = plotCourse(r, c);
 					}
 				}
 			}
-			setTimeout(bot, 0); // TRIGGER
+			setTimeout(botGo, 0); // TRIGGER
 			return; // EXIT
 		}
 		let random = Math.floor(Math.random()*occ.length);
 		let coord = occ[random].id.split(" ");
 		let stop = 0;
-		while (botBeenBefore[coord[0]][coord[1]]) {
+		while (bot.beenBefore[coord[0]][coord[1]]) {
 			random = Math.floor(Math.random()*occ.length);
 			coord = occ[random].id.split(" ");
 			stop ++;
@@ -496,17 +489,25 @@ function bot() {
 		sendMsg(`move to\n${coord[0]}\n${coord[1]}`);
 	}
 
-	setTimeout(bot, delay); // TRIGGER
+	setTimeout(botGo, bot.seekerDelay); // TRIGGER
 	return; // EXIT
 }
 
 //BOT
+function randomMove() {
+	let occ = Array.from(document.getElementsByClassName("occupiable"));
+	let random = Math.floor(Math.random()*occ.length);
+	let coord = occ[random].id.split(" ");
+	sendMsg(`move to\n${coord[0]}\n${coord[1]}`);
+}
+
+//BOT
 function beenEverywhere() {
-	let rows = botBeenBefore.length,
-	    cols = botBeenBefore[0].length;
+	let rows = bot.beenBefore.length,
+	    cols = bot.beenBefore[0].length;
 	for (let r = 0; r < rows; r++) {
 		for (let c = 0; c < cols; c++) {
-			if (!botBeenBefore[r][c]) { return false; }
+			if (!bot.beenBefore[r][c]) { return false; }
 		}
 	}
 	return true;
@@ -514,11 +515,11 @@ function beenEverywhere() {
 
 //BOT
 function resetBotBeenBefore() {
-	let rows = botBeenBefore.length,
-	    cols = botBeenBefore[0].length;
+	let rows = bot.beenBefore.length,
+	    cols = bot.beenBefore[0].length;
 	for (let r = 0; r < rows; r++) {
 		for (let c = 0; c < cols; c++) {
-			botBeenBefore[r][c] = botBeenBeforeReset[r][c];
+			bot.beenBefore[r][c] = bot.beenBeforeReset[r][c];
 		}
 	}
 }
@@ -528,7 +529,7 @@ function beenToAllOcc(occ) {
 	let len = occ.length;
 	for (let i = 0; i < len; i++) {
 		coord = occ[i].id.split(" ");
-		if (!botBeenBefore[coord[0]][coord[1]]) { return false; }
+		if (!bot.beenBefore[coord[0]][coord[1]]) { return false; }
 	}
 	return true;
 }
@@ -565,16 +566,81 @@ function plotCourse(destRow, destCol) {
 function mainScreen() {
 	topMsgArea.innerHTML = `
 
+	<div class="title">HideAndSeek.fun</div>
+	<div>
+		<span style="font-size: 70px; margin-right: -60px;">🔴</span>
+		<span style="font-size: 60px; margin-right: -50px;">🌲</span>
+		<span style="font-size: 80px; margin-right: -60px;">🌲</span>
+		<span style="font-size: 100px; margin-right: -70px;">🌲</span>
+		<span style="font-size: 120px; margin-right: -50px;">🙈</span>
+		<span style="font-size: 140px; margin-right: -90px;">🌲</span>
+		<span style="font-size: 170px; margin-right: -100px;">🌲</span>
+		<span style="font-size: 220px; margin-right: -90px;">🐣</span>
+		<span style="font-size: 200px">❗</span>
+	</div>
 	name: <input id="name" maxlength="31"><br>
 	<br>
 	<button id="Start New Game">Start New Game</button><br>
 	<em>or</em><br>
 	<button id="Join a Game">Join a Game</button><br> 
-	<br>
+	<em>or</em><br>
+	<button id="Instructions">Instructions</button>
 
 	`;
+	document.getElementById("name").value = name;
 	document.getElementById("Start New Game").addEventListener("click", newGame);
 	document.getElementById("Join a Game").addEventListener("click", enterCodeScreen);
+	document.getElementById("Instructions").addEventListener("click", instructionsScreen);
+}
+
+function instructionsScreen() {
+	document.getElementById("Instructions").innerHTML = "Instructions ↓↓↓";
+	bottomMsgArea.innerHTML = `
+
+	<br>
+	<div style="font-size: 75%; text-align: left;">
+		<em>HideAndSeek.fun is an online multiplayer hide and seek game!</em>
+		<p>How to play: <em>(it's very simple)</em></p>
+	</div>
+	<div style="font-size: 65%; text-align: left;">
+		<p>
+			You either:<br>
+			<span class="bold">A</span>) <em>Start a New Game:</em>
+			<ul>
+				<li>A new game code will be generated and given to you.</li>
+				<li>Get other people to join your game using that game code.</li>
+			</ul>
+			<span class="bold">B</span>) <em>Join a game</em> that someone else has started:
+			<ul>
+				<li>Ask them for the game code and join using that code.</li>
+				<li>You can even join after the game has already started—you'll just join at the next round.</li>
+			</ul>
+		</p>
+		<p><span class="bold">Then</span>, once the game has started, you'll see a <em>forest grid</em>.</p>
+		<p>The pink squares are where you can move.</p>
+		<p>
+			One player is the seeker.<br>
+			—If you are the seeker, you can't see anyone; move around the forest and try to find people by moving onto the tree they're hiding behind.
+		</p>
+		<p>
+			Everyone else is a hider.<br>
+			—If you're a hider, you can see the seeker (a giant red dot) and all the other hiders—move around so you don't get found by the red dot!
+		</p>
+		<p>
+			The last hider who isn't found is the winner of the round (unless it's a 2-player game, then the round is over when the only hider is found).
+		</p>
+		<p>
+			Other:
+			<ul>
+				<li>The forest sometimes has clearings (non-tree spots)—hiders can't move onto these but the seeker can.</li>
+				<li>Once the seeker has touched every tree once, the trees start to disappear.</li>
+				<li>You can join a game that's currently in session—you just have to wait for the next round.</li>
+			</ul>
+		</p>
+	</div>
+
+	`;
+	setTimeout(() => {document.getElementById("Instructions").innerHTML = "Instructions"}, 3000);
 }
 
 function newGame() {
@@ -592,22 +658,24 @@ function enterCodeScreen() {
 		reportProblemWithDesiredName(desiredName);
 		return;
 	}
-
+	name = desiredName.str;
 	topMsgArea.innerHTML = `
 
 	code: <input id="code" maxlength="4"><br>
 	<br>
-	<button id="join">join</button><br>
-	<br>
+	<button id="join">Join</button><br>
+	<em>or</em><br>
+	<button id="back">← Go Back</button>
 
 	`;
-
+	bottomMsgArea.innerHTML = "";
 	joinGame = function() {
 		sendMsg("join", document.getElementById("code").value.toUpperCase(), desiredName.str);
 	};
 
 	document.getElementById("join").addEventListener("click", joinGame);
 	document.getElementById("code").addEventListener("keydown", e => {if (e.keyCode === 13) {joinGame()}});
+	document.getElementById("back").addEventListener("click", mainScreen);
 }
 
 function clearScreen() {

@@ -175,6 +175,10 @@ func main() {
 
 				switch msg[0] { // 6 message types can be received:
 
+				case "good bye":
+					sendMsg(conn, code, name, "bye!")
+					conn.Close()
+
 				case "join": // code // name
 					mutex.Lock()
 
@@ -376,6 +380,8 @@ func main() {
 	})
 
 	http.ListenAndServe(":8080", nil)
+
+	
 }
 
 func sendMsg(conn *websocket.Conn, code string, name string, msg string) error {
