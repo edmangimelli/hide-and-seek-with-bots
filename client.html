@@ -18,7 +18,27 @@
 	</style>
 </head>
 <body>
-	<div id="topMsgArea"></div>
+	<div id="topMsgArea">
+		<div class="title">HideAndSeek.fun</div>
+		<div>
+			<span style="font-size: 70px; margin-right: -60px;">🔴</span>
+			<span style="font-size: 60px; margin-right: -50px;">🌲</span>
+			<span style="font-size: 80px; margin-right: -60px;">🌲</span>
+			<span style="font-size: 100px; margin-right: -70px;">🌲</span>
+			<span style="font-size: 120px; margin-right: -50px;">🙈</span>
+			<span style="font-size: 140px; margin-right: -90px;">🌲</span>
+			<span style="font-size: 170px; margin-right: -100px;">🌲</span>
+			<span style="font-size: 220px; margin-right: -90px;">🐣</span>
+			<span style="font-size: 200px">❗</span>
+		</div>
+		name: <input id="name" maxlength="31"><br>
+		<br>
+		<button id="Start New Game">Start New Game</button><br>
+		<em>or</em><br>
+		<button id="Join a Game">Join a Game</button><br> 
+		<em>or</em><br>
+		<button id="Instructions">Instructions</button>
+	</div>
 	<div id="forestArea"></div>
 	<div id="bottomMsgArea"></div>
 </body>
@@ -64,17 +84,30 @@ let forest = [],      //  holds a copy of the forest for redrawing
                       //    come in during a round and are waiting to join the
                       //    next round.
 
+// other
+let ignoreMsgs = false,
+    mainScreenBackup = "";
+
+
 
 socket.onopen = function () {
 	console.log("connected.");
 };
 
 socket.onmessage = function (e) {
+
 	console.log("✉ received message:");
 	console.log(e.data);
 
+	if (ignoreMsgs) {
+		console.log("message ignored.");
+		return;
+	}
+
 	msg = e.data.split("\n")
 	switch (msg[0]) {
+	case "bye!":
+	break;
 	case "found": // emoji // name // ROW // COL
 		// only non-waiting players receive this msg
 		{
@@ -97,7 +130,7 @@ socket.onmessage = function (e) {
 				printlns(forestArea, `${e} ${n} was found!`);
 			}
 		}
-		break;
+	break;
 	case "game initialized": // code // emoji // name
 		// only someone starting a new game receives this msg
 		code = msg[1];
@@ -105,30 +138,17 @@ socket.onmessage = function (e) {
 		name = msg[3];
 		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
 		seekerWaitingForPlayersScreen();
-		break;
-	case "game can't begin; seeker left":
-		// situation where someone initializes a game and then leaves before starting it
-		// all players receive this msg (but none will ever be playing by definition)
-		go = false; //BOT
-		clearScreen();
-		printlns(topMsgArea,
-			{style: "font-size: 150%;"}, "Seeker left!",
-			"",
-			{style: "font-size: 125%; font-style: italic;"}, "Refresh page and try",
-			{style: "font-size: 125%; font-style: italic;"}, "joining a different game",
-			{style: "font-size: 125%; font-style: italic;"}, "or starting your own.",
-		);
-		break;
+	break;
 	case "go!":
 		go = true;
 		if ( bot.on ) { botGo(); } //BOT
-		break;
+	break;
 	case "joined": // emoji // name
 		// all players receive this msg
 		if (!playing) {
 			addToJoinedList(msg[1], msg[2]);
 		}
-		break;
+	break;
 	case "left": // emoji // name // row // col
 		// all players receive this msg
 		// a player could leave before the first round
@@ -144,7 +164,7 @@ socket.onmessage = function (e) {
 		} else {
 			removeFromJoinedList(msg[1]);
 		}
-		break;
+	break;
 	case "moved": // EMOJI // from // ROW // COL // to // ROW // COL
 		// only non-waiting player receive this msg
 		{
@@ -193,17 +213,17 @@ socket.onmessage = function (e) {
 			}
 			makeNearbyTreesOccupiable(row, col);
 		}
-		break;
+	break;
 	case "name is taken": // name
 		// only one player will receive this msg, and they won't have begun playing
 		mainScreen();
 		reportProblemWithDesiredName({reason: msg[0], str: msg[1]});
-		break;
+	break;
 	case "no such game": // code
 		// only one player will receive this msg, and they won't have begun playing
 		bottomMsgArea.innerHTML = "";
 		printlns(bottomMsgArea, "Can't find that game. 😕", "", "Is that the right code?");
-		break;
+	break;
 	case "remove tree": // row // col
 		{
 			let r = Number(msg[1]),
@@ -212,50 +232,99 @@ socket.onmessage = function (e) {
 			cell.classList.remove("tree");
 			forest[r][c] = " ";
 		}
-		break;
+	break;
 	case "round over": // seeker left | 2 player game | too few hiders
 		// all players receive this msg
-		go = false; //BOT
+		// round over // 2 player game
+		// round over // too few hiders
+		// round over // too few hiders // too few hiders to start next round
+		// round over // seeker left
+		// round over // seeker left // you are now seeker
+		// round over // seeker left // you are now seeker // too few hiders to start next round
+
+		go = false;
 		clearScreen();
-		if (playing) {
-			switch (msg[1]) {
-			case "seeker left":
-				printlns(topMsgArea,
-					{style: "font-size: 150%;"}, "Seeker left!",
-					"",
-					{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
-				);
-				break;
-			case "2 player game":
-				printlns(topMsgArea,
-					{style: "font-size: 150%;"}, "Hider found!",
-					"",
-					{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
-				);
-				break;
-			case "too few hiders":
-				printlns(topMsgArea,
-					{style: "font-size: 150%;"}, "Too few hiders 😕",
-					"",
-					{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
-				);
-				break;
-			}
+
+		m = msg.slice(1).join("; ");
+		//if (playing) {
+		switch (m) {
+		case "2 player game":
+			printlns(topMsgArea,
+				{style: "font-size: 150%;"}, "Hider found!",
+				"",
+				{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
+			);
 			setTimeout(() => sendMsg("ready for next setup"), 2000);
-		} else { // waitingToJoin
-			sendMsg("ready for next setup")
-		}
 		break;
+		case "too few hiders":
+			// this should only be triggered during 2 player games ? (automatic winners in multiHiderRounds)
+			// the next round could be a multiHiderRound (if multiple people are waiting to join)
+			printlns(topMsgArea,
+				{style: "font-size: 150%;"}, "The hider left the game 😕",
+				"",
+				{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
+			);
+			setTimeout(() => sendMsg("ready for next setup"), 2000);
+		break;
+		case "too few hiders; too few hiders to start next round":
+			// this should only be triggered during 2 player games ? (automatic winners in multiHiderRounds)
+			// no one is waiting to join the game
+			playing = false;
+			seekerWaitingForPlayersScreen("hider left");
+		break;
+		case "seeker left":
+			printlns(topMsgArea,
+				{style: "font-size: 150%;"}, "The seeker left the round! 😮",
+				"",
+				{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
+			);
+			setTimeout(() => sendMsg("ready for next setup"), 2000);
+		break;
+		case "seeker left; you are now seeker":
+			printlns(topMsgArea,
+				{style: "font-size: 150%;"}, "The seeker left the round! 😮",
+				"",
+				{style: "font-size: 200%;", class: "bold"}, "And you have been randomly",
+				{style: "font-size: 200%;", class: "bold"}, "selected to be the next seeker! 😱",
+				"",
+				{style: "font-size: 125%; font-style: italic;"}, "Starting next round!",
+			);
+			setTimeout(() => sendMsg("ready for next setup"), 2000);
+		break;
+		case "seeker left; you are now seeker; too few hiders to start next round":
+			playing = false;
+			seekerWaitingForPlayersScreen("seeker left");
+		break;
+		}
+		//} else { // waiting
+		//	sendMsg("ready for next setup")
+		//}
+	break;
+	case "seeker left": // you are now seeker
+		forestArea.innerHTML = `
+
+		The person who started<br>
+		the game left!<br>
+		<em class="bold">You</em> are now the seeker<br>
+		for the first round.<br>
+		Press start to start<br>
+		the round!<br>
+		<span class="light">(people can join after you press start</span><br>
+		<span class="light">—they'll just join at the next round.)</span><br>
+		<button id="start">Start</button>
+
+		`;
+		document.getElementById("start").addEventListener("click", start);
+	break;
 	case "setup": // seeker EMOJI // forest // TREES_PER_ROW // TREES // EMOJI // NAME // ROW // COL // SCORE // ... 
 		// all players receive this msg
 		{
-			// forest, seeker, amSeeker, go, playing, found, row, col
+			// forest, seeker, amSeeker, playing, found, row, col
 			//  are set using this msg
 	
 			clearScreen();
 	
 			playing = true;
-			go = false;
 			found = false;
 	
 			seeker = msg[1].split(" ")[1];
@@ -369,47 +438,40 @@ socket.onmessage = function (e) {
 	
 			sendMsg("ready to go");
 		}
-		break;
+	break;
 	case "too few hiders":
 		// always received by 1 player
-		// either a round ended and another can't begin (because too few)
 		// a game can't begin because too few (before round 0)
-		go = false; //BOT
-		if (playing) {
-			playing = false;
-			seekerWaitingForPlayersScreen();
-		}
+		seekerWaitingForPlayersScreen();
 		bottomMsgArea.innerHTML = "";
 		printlns(bottomMsgArea, "Too few hiders! 😕", "", "Ask some people to join!");
-		break;
+	break;
 	case "too many games in session":
 		// msg received by 1 player
 		bottomMsgArea.innerHTML = "";
 		printlns(bottomMsgArea, "Whoa!", "", "The server can't handle", "any more games!", "", "Try again later", "or join a game.");
-		break;
+	break;
 	case "wait for next round": // code // yourEmoji // yourName // emoji // name // ...
 		// msg received by 1 player
-		go = false; //BOT
 		code = msg[1];
 		emoji = msg[2];
 		name = msg[3];
 		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
 		waitForScreen("You'll join at", "the next round!", "");
 		addToJoinedList(...msg.slice(4,));
-		break;
+	break;
 	case "wait for start": // code // yourEmoji // yourName // emoji // name // ...
 		// msg received by 1 player
-		go = false; //BOT
 		code = msg[1];
 		emoji = msg[2];
 		name = msg[3];
 		if (name.toLowerCase().slice(-3) === "bot") { bot.on = true; } //BOT
-		waitForScreen("The seeker has not", "started the game yet.", "Hold Tight!");
+		waitForScreen("The seeker has not", "started the game yet.", "Hold tight!");
 		addToJoinedList(...msg.slice(4,));
-		break;
+	break;
 	case "winner": // emoji // name
 		// msg received by all players
-		go = false; //BOT
+		go = false;
 		if (playing) {
 			clearScreen();
 			let e = msg[1],
@@ -427,17 +489,15 @@ socket.onmessage = function (e) {
 		} else {
 			sendMsg("ready for next setup");
 		}
-		break;
+	break;
 	default:
-		console.log("\n! unknown message:");
-		console.log(msg);
-		console.log("");
-		break;
+		console.log("\n! unknown message\n");
+	break;
 	}
 };
 
-
-mainScreen();
+mainScreenBackup = document.body.innerHTML;
+mainScreen(true);
 
 //BOT
 function botGo() {
@@ -563,31 +623,19 @@ function plotCourse(destRow, destCol) {
 	return course;
 }
 
-function mainScreen() {
-	topMsgArea.innerHTML = `
+function mainScreen(onlyAddEventListeners = false) {
+	if (onlyAddEventListeners) {
+		;
+	} else {
+		document.body.innerHTML = mainScreenBackup;
+    	topMsgArea = document.getElementById("topMsgArea");
+    	forestArea = document.getElementById("forestArea");
+    	bottomMsgArea = document.getElementById("bottomMsgArea");
+	}
 
-	<div class="title">HideAndSeek.fun</div>
-	<div>
-		<span style="font-size: 70px; margin-right: -60px;">🔴</span>
-		<span style="font-size: 60px; margin-right: -50px;">🌲</span>
-		<span style="font-size: 80px; margin-right: -60px;">🌲</span>
-		<span style="font-size: 100px; margin-right: -70px;">🌲</span>
-		<span style="font-size: 120px; margin-right: -50px;">🙈</span>
-		<span style="font-size: 140px; margin-right: -90px;">🌲</span>
-		<span style="font-size: 170px; margin-right: -100px;">🌲</span>
-		<span style="font-size: 220px; margin-right: -90px;">🐣</span>
-		<span style="font-size: 200px">❗</span>
-	</div>
-	name: <input id="name" maxlength="31"><br>
-	<br>
-	<button id="Start New Game">Start New Game</button><br>
-	<em>or</em><br>
-	<button id="Join a Game">Join a Game</button><br> 
-	<em>or</em><br>
-	<button id="Instructions">Instructions</button>
-
-	`;
-	document.getElementById("name").value = name;
+	let n = document.getElementById("name")
+	n.focus();
+	n.value = name;
 	document.getElementById("Start New Game").addEventListener("click", newGame);
 	document.getElementById("Join a Game").addEventListener("click", enterCodeScreen);
 	document.getElementById("Instructions").addEventListener("click", instructionsScreen);
@@ -674,8 +722,10 @@ function enterCodeScreen() {
 	};
 
 	document.getElementById("join").addEventListener("click", joinGame);
-	document.getElementById("code").addEventListener("keydown", e => {if (e.keyCode === 13) {joinGame()}});
-	document.getElementById("back").addEventListener("click", mainScreen);
+	let c = document.getElementById("code")
+	c.focus()
+	c.addEventListener("keydown", e => {if (e.keyCode === 13) {joinGame()}});
+	document.getElementById("back").addEventListener("click", function() { mainScreen() });
 }
 
 function clearScreen() {
@@ -694,11 +744,33 @@ function someoneElseLeft_updateClasses(r, c) { // the reason we need to keep tra
 	}
 }
 
-function seekerWaitingForPlayersScreen() {
+function seekerWaitingForPlayersScreen(reason = "starting") {
 	clearScreen();
-	topMsgArea.innerHTML = `
 
-	You are the seeker!<br>
+	switch (reason) {
+	case "seeker left":
+		topMsgArea.innerHTML = `
+
+		The seeker left the round! 😮<br>
+		And now there aren't enough<br>
+		players to start the next round! 😢
+
+		`;
+	break;
+	case "hider left":
+		topMsgArea.innerHTML = `
+
+		The hider left the game 😕
+
+		`;
+	break;
+	}
+
+	forestArea.innerHTML = `
+
+	You are
+	${ reason === "seeker left" ? "now" : (reason === "hider left" ? "still" : "") }
+	the seeker!<br>
 	Tell your friends to<br>
 	<em class="bold">join</em> your game<br>
 	using code: <span class="bold">${code}</span><br>
@@ -714,7 +786,6 @@ function seekerWaitingForPlayersScreen() {
 	<button id="start">Start</button>
 
 	`;
-
 	bottomMsgArea.innerHTML = `
 
 	<br>
@@ -730,20 +801,25 @@ function seekerWaitingForPlayersScreen() {
 function waitForScreen() {
 	topMsgArea.innerHTML = `
 
-	Game <span class="bold">${code}</span>:<br>
-	<br>
+	Game <span class="bold">${code}</span>:
+
+	`;
+	forestArea.innerHTML = `
+
 	${arguments[0]}<br>
 	${arguments[1]}<br>
-	${arguments[2] === "" ? "": arguments[2]+ "<br>"}
+	${arguments[2] === "" ? "": arguments[2]}
+
+	`;
+	bottomMsgArea.innerHTML = `
+	
 	<br>
 	<div id="joined">
 	<div>Joined:</div>
 	<div class="${emoji}">${emoji} ${name} (you)</div>
 	</div>
-	<br>
 
 	`;
-	bottomMsgArea.innerHTML = "";
 }
 
 
@@ -927,7 +1003,7 @@ function illegalChar(name) {
 		return "\n";
 	}
 
-	let illChar = /[^ \-\w.()[\]]/.exec(name);
+	let illChar = /[^ \-\w.'()[\]]/.exec(name);
 
 	if (illChar == null) {
 		return "";
